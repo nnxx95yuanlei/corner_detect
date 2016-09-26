@@ -1,0 +1,39 @@
+diff --git a/include/system/camera.h b/include/system/camera.h
+index 6de0203..3beed42 100644
+--- a/include/system/camera.h
++++ b/include/system/camera.h
+@@ -329,6 +329,19 @@ typedef enum {
+     CAMERA_FRAME_DATA_FD = 0x100
+ } camera_frame_data_type_t;
+ 
++typedef struct camera_corner{
++    int32_t x;
++    int32_t y;
++}camera_corner_t;
++
++typedef enum {
++
++CAMERA_METADATA_FACE_DETECT = 0x00,
++
++CAMERA_METADATA_CORNER_DETECT = 0x01,
++
++}cam_metadata_type_t;
++
+ /**
+  * The metadata of the frame data.
+  */
+@@ -342,6 +355,14 @@ typedef struct camera_frame_metadata {
+      * An array of the detected faces. The length is number_of_faces.
+      */
+     camera_face_t *faces;
++
++    cam_metadata_type_t type; 
++
++    int32_t number_of_corners;
++
++    int32_t frame_idx;
++
++    camera_corner_t *corners;
+ } camera_frame_metadata_t;
+ 
+ __END_DECLS

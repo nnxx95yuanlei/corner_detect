@@ -1,0 +1,76 @@
+diff --git a/camera/Camera.cpp b/camera/Camera.cpp
+old mode 100644
+new mode 100755
+index bf9904c..1dd3461
+--- a/camera/Camera.cpp
++++ b/camera/Camera.cpp
+@@ -355,6 +355,7 @@ void Camera::dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
+         listener = mListener;
+     }
+     if (listener != NULL) {
++		ALOGE("yuanlei33 camera cpp msgtype = %d metadata pointer %p , size %d",msgType,metadata,sizeof(camera_frame_metadata_t));
+         listener->postData(msgType, dataPtr, metadata);
+     }
+ }
+diff --git a/camera/ICameraClient.cpp b/camera/ICameraClient.cpp
+old mode 100644
+new mode 100755
+index 8a7430f..7dc83ab
+--- a/camera/ICameraClient.cpp
++++ b/camera/ICameraClient.cpp
+@@ -71,6 +71,14 @@ public:
+         if (metadata) {
+             data.writeInt32(metadata->number_of_faces);
+             data.write(metadata->faces, sizeof(camera_face_t) * metadata->number_of_faces);
++			data.writeInt32(metadata->number_of_corners);
++			data.write(metadata->corners, sizeof(camera_corner_t) * metadata->number_of_corners);
++			data.writeInt32(metadata->frame_idx);
++			data.writeInt32((uint32_t)metadata->type);
++			ALOGE("yuanlei33 bp type %d",metadata->type);
++		//	for(int i =0;i< metadata->number_of_corners ; i++){
++		//	ALOGE("yuanlei44 corner x = %d, y =%d",metadata->corners[i].x,metadata->corners[i].y);
++		//	}
+         }
+         remote()->transact(DATA_CALLBACK, data, &reply, IBinder::FLAG_ONEWAY);
+     }
+@@ -132,6 +140,12 @@ status_t BnCameraClient::onTransact(
+                 metadata->number_of_faces = data.readInt32();
+                 metadata->faces = (camera_face_t *) data.readInplace(
+                         sizeof(camera_face_t) * metadata->number_of_faces);
++				metadata->number_of_corners = data.readInt32();
++				metadata->corners = (camera_corner_t *) data.readInplace(
++                        sizeof(camera_corner_t) * metadata->number_of_corners);
++				metadata->frame_idx = data.readInt32();
++				metadata->type = (cam_metadata_type_t)data.readInt32();
++				ALOGE("yuanlei33 bn type %d size %d",metadata->type,sizeof(camera_frame_metadata_t));
+             }
+             dataCallback(msgType, imageData, metadata);
+             if (metadata) delete metadata;
+diff --git a/services/camera/libcameraservice/api1/CameraClient.cpp b/services/camera/libcameraservice/api1/CameraClient.cpp
+old mode 100644
+new mode 100755
+index c79d531..04546a9
+--- a/services/camera/libcameraservice/api1/CameraClient.cpp
++++ b/services/camera/libcameraservice/api1/CameraClient.cpp
+@@ -988,6 +988,7 @@ void CameraClient::handleGenericData(int32_t msgType,
+     mLock.unlock();
+     if (c != 0) {
+         c->dataCallback(msgType, dataPtr, metadata);
++		if(msgType == CAMERA_MSG_PREVIEW_METADATA) ALOGE("yuanlei33 cameraclient");
+     }
+ }
+ 
+diff --git a/services/camera/libcameraservice/device1/CameraHardwareInterface.h b/services/camera/libcameraservice/device1/CameraHardwareInterface.h
+old mode 100644
+new mode 100755
+index bce0762..cd4d22c
+--- a/services/camera/libcameraservice/device1/CameraHardwareInterface.h
++++ b/services/camera/libcameraservice/device1/CameraHardwareInterface.h
+@@ -507,6 +507,7 @@ private:
+                  index, mem->mNumBufs);
+             return;
+         }
++		if(msg_type == CAMERA_MSG_PREVIEW_METADATA) ALOGE("yuanlei33 camerahardwareinterface");
+         __this->mDataCb(msg_type, mem->mBuffers[index], metadata, __this->mCbUser);
+     }
+ 

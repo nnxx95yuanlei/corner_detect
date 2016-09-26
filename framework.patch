@@ -1,0 +1,406 @@
+diff --git a/api/current.txt b/api/current.txt
+index 4f12ad4..f0bb75b 100644
+--- a/api/current.txt
++++ b/api/current.txt
+@@ -13210,6 +13210,7 @@ package android.hardware {
+     method public final void reconnect() throws java.io.IOException;
+     method public final void release();
+     method public void setAutoFocusMoveCallback(android.hardware.Camera.AutoFocusMoveCallback);
++    method public final void setCornerDetectionListener(android.hardware.Camera.CornerDetectionListener);
+     method public final void setDisplayOrientation(int);
+     method public final void setErrorCallback(android.hardware.Camera.ErrorCallback);
+     method public final void setFaceDetectionListener(android.hardware.Camera.FaceDetectionListener);
+@@ -13259,6 +13260,15 @@ package android.hardware {
+     field public int orientation;
+   }
+ 
++  public static deprecated class Camera.Corner {
++    ctor public Camera.Corner();
++    field public android.graphics.Point corner;
++  }
++
++  public static abstract deprecated interface Camera.CornerDetectionListener {
++    method public abstract void onCornerDetection(android.hardware.Camera.Corner[], android.hardware.Camera);
++  }
++
+   public static abstract deprecated interface Camera.ErrorCallback {
+     method public abstract void onError(int, android.hardware.Camera);
+   }
+diff --git a/api/system-current.txt b/api/system-current.txt
+index d1c0394..db17f6c 100644
+--- a/api/system-current.txt
++++ b/api/system-current.txt
+@@ -13649,6 +13649,7 @@ package android.hardware {
+     method public final void reconnect() throws java.io.IOException;
+     method public final void release();
+     method public void setAutoFocusMoveCallback(android.hardware.Camera.AutoFocusMoveCallback);
++    method public final void setCornerDetectionListener(android.hardware.Camera.CornerDetectionListener);
+     method public final void setDisplayOrientation(int);
+     method public final void setErrorCallback(android.hardware.Camera.ErrorCallback);
+     method public final void setFaceDetectionListener(android.hardware.Camera.FaceDetectionListener);
+@@ -13698,6 +13699,15 @@ package android.hardware {
+     field public int orientation;
+   }
+ 
++  public static deprecated class Camera.Corner {
++    ctor public Camera.Corner();
++    field public android.graphics.Point corner;
++  }
++
++  public static abstract deprecated interface Camera.CornerDetectionListener {
++    method public abstract void onCornerDetection(android.hardware.Camera.Corner[], android.hardware.Camera);
++  }
++
+   public static abstract deprecated interface Camera.ErrorCallback {
+     method public abstract void onError(int, android.hardware.Camera);
+   }
+diff --git a/api/test-current.txt b/api/test-current.txt
+index a70e9e3..4e900aa 100644
+--- a/api/test-current.txt
++++ b/api/test-current.txt
+@@ -13223,6 +13223,7 @@ package android.hardware {
+     method public final void reconnect() throws java.io.IOException;
+     method public final void release();
+     method public void setAutoFocusMoveCallback(android.hardware.Camera.AutoFocusMoveCallback);
++    method public final void setCornerDetectionListener(android.hardware.Camera.CornerDetectionListener);
+     method public final void setDisplayOrientation(int);
+     method public final void setErrorCallback(android.hardware.Camera.ErrorCallback);
+     method public final void setFaceDetectionListener(android.hardware.Camera.FaceDetectionListener);
+@@ -13272,6 +13273,15 @@ package android.hardware {
+     field public int orientation;
+   }
+ 
++  public static deprecated class Camera.Corner {
++    ctor public Camera.Corner();
++    field public android.graphics.Point corner;
++  }
++
++  public static abstract deprecated interface Camera.CornerDetectionListener {
++    method public abstract void onCornerDetection(android.hardware.Camera.Corner[], android.hardware.Camera);
++  }
++
+   public static abstract deprecated interface Camera.ErrorCallback {
+     method public abstract void onError(int, android.hardware.Camera);
+   }
+diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
+old mode 100644
+new mode 100755
+index 4de2f4b..1a7af14
+--- a/core/java/android/hardware/Camera.java
++++ b/core/java/android/hardware/Camera.java
+@@ -174,6 +174,7 @@ public class Camera {
+     private AutoFocusMoveCallback mAutoFocusMoveCallback;
+     private OnZoomChangeListener mZoomListener;
+     private FaceDetectionListener mFaceListener;
++	private CornerDetectionListener mCornerListener;
+     private ErrorCallback mErrorCallback;
+     private boolean mOneShot;
+     private boolean mWithBuffer;
+@@ -1182,9 +1183,15 @@ public class Camera {
+                 return;
+ 
+             case CAMERA_MSG_PREVIEW_METADATA:
+-                if (mFaceListener != null) {
+-                    mFaceListener.onFaceDetection((Face[])msg.obj, mCamera);
+-                }
++				if(msg.arg2 == 1){
++					if (mCornerListener != null) {
++	                    mCornerListener.onCornerDetection((Corner[])msg.obj, mCamera);
++	                }
++				}else{
++	                if (mFaceListener != null) {
++	                    mFaceListener.onFaceDetection((Face[])msg.obj, mCamera);
++	                }
++				}
+                 return;
+ 
+             case CAMERA_MSG_ERROR :
+@@ -1703,6 +1710,20 @@ public class Camera {
+         void onFaceDetection(Face[] faces, Camera camera);
+     }
+ 
++
++    @Deprecated
++    public interface CornerDetectionListener
++    {
++        /**
++         * Notify the listener of the detected corners in the preview frame.
++         *
++         * @param corners The detected corners in a list
++         * @param camera  The {@link Camera} service object
++         */
++        void onCornerDetection(Corner[] corners, Camera camera);
++    }
++	
++
+     /**
+      * Registers a listener to be notified about the faces detected in the
+      * preview frame.
+@@ -1715,6 +1736,11 @@ public class Camera {
+         mFaceListener = listener;
+     }
+ 
++    public final void setCornerDetectionListener(CornerDetectionListener listener)
++    {
++        mCornerListener = listener;
++    }
++
+     /**
+      * Starts the face detection. This should be called after preview is started.
+      * The camera will notify {@link FaceDetectionListener} of the detected
+@@ -1890,6 +1916,16 @@ public class Camera {
+         public int faceRecognised = 0;
+     }
+ 
++    @Deprecated
++    public static class Corner {
++        /**
++         * Create an empty face.
++         */
++        public Corner() {
++        }
++	public Point corner = null;
++
++	}
+     /**
+      * Unspecified camera error.
+      * @see Camera.ErrorCallback
+diff --git a/core/jni/android_hardware_Camera.cpp b/core/jni/android_hardware_Camera.cpp
+old mode 100644
+new mode 100755
+index c28a66c..8c7c898
+--- a/core/jni/android_hardware_Camera.cpp
++++ b/core/jni/android_hardware_Camera.cpp
+@@ -61,6 +61,7 @@ struct fields_t {
+     jmethodID   post_event;
+     jmethodID   rect_constructor;
+     jmethodID   face_constructor;
++	jmethodID   corner_constructor;
+     jmethodID   point_constructor;
+     jfieldID    face_sm_degree;
+     jfieldID    face_sm_score;
+@@ -74,6 +75,7 @@ struct fields_t {
+     jfieldID    face_left_right_gaze;
+     jfieldID    face_top_bottom_gaze;
+     jfieldID    face_recognised;
++	jfieldID    corner_position;
+ };
+ 
+ static fields_t fields;
+@@ -107,6 +109,7 @@ private:
+     jclass      mCameraJClass;          // strong reference to java class
+     sp<Camera>  mCamera;                // strong reference to native object
+     jclass      mFaceClass;  // strong reference to Face class
++    jclass      mCornerClass;
+     jclass      mRectClass;  // strong reference to Rect class
+     jclass      mPointClass;  // strong reference to Point class
+     bool        mIsExtendedFace;
+@@ -171,6 +174,9 @@ JNICameraContext::JNICameraContext(JNIEnv* env, jobject weak_this, jclass clazz,
+         mFaceClass = (jclass) env->NewGlobalRef(faceClazz);
+         mIsExtendedFace = false;
+     }
++	
++    jclass cornerClazz = env->FindClass("android/hardware/Camera$Corner");
++    mCornerClass = (jclass) env->NewGlobalRef(cornerClazz);
+ 
+     jclass rectClazz = env->FindClass("android/graphics/Rect");
+     mRectClass = (jclass) env->NewGlobalRef(rectClazz);
+@@ -200,6 +206,10 @@ void JNICameraContext::release()
+         env->DeleteGlobalRef(mFaceClass);
+         mFaceClass = NULL;
+     }
++	if (mCornerClass != NULL) {
++        env->DeleteGlobalRef(mCornerClass);
++        mCornerClass = NULL;
++    }
+     if (mRectClass != NULL) {
+         env->DeleteGlobalRef(mRectClass);
+         mRectClass = NULL;
+@@ -379,74 +389,102 @@ void JNICameraContext::postRecordingFrameHandleTimestamp(nsecs_t, native_handle_
+ 
+ void JNICameraContext::postMetadata(JNIEnv *env, int32_t msgType, camera_frame_metadata_t *metadata)
+ {
+-    jobjectArray obj = NULL;
+-    obj = (jobjectArray) env->NewObjectArray(metadata->number_of_faces,
+-                                             mFaceClass, NULL);
+-    if (obj == NULL) {
+-        ALOGE("Couldn't allocate face metadata array");
+-        return;
+-    }
+-
+-    for (int i = 0; i < metadata->number_of_faces; i++) {
+-        jobject face = env->NewObject(mFaceClass, fields.face_constructor);
+-        env->SetObjectArrayElement(obj, i, face);
+-
+-        jobject rect = env->NewObject(mRectClass, fields.rect_constructor);
+-        env->SetIntField(rect, fields.rect_left, metadata->faces[i].rect[0]);
+-        env->SetIntField(rect, fields.rect_top, metadata->faces[i].rect[1]);
+-        env->SetIntField(rect, fields.rect_right, metadata->faces[i].rect[2]);
+-        env->SetIntField(rect, fields.rect_bottom, metadata->faces[i].rect[3]);
+-        env->SetObjectField(face, fields.face_rect, rect);
+-        env->SetIntField(face, fields.face_score, metadata->faces[i].score);
+-
+-        bool optionalFields = metadata->faces[i].id != 0
+-            && metadata->faces[i].left_eye[0] != -2000 && metadata->faces[i].left_eye[1] != -2000
+-            && metadata->faces[i].right_eye[0] != -2000 && metadata->faces[i].right_eye[1] != -2000
+-            && metadata->faces[i].mouth[0] != -2000 && metadata->faces[i].mouth[1] != -2000;
+-        if (optionalFields) {
+-            int32_t id = metadata->faces[i].id;
+-            env->SetIntField(face, fields.face_id, id);
+-
+-            jobject leftEye = env->NewObject(mPointClass, fields.point_constructor);
+-            env->SetIntField(leftEye, fields.point_x, metadata->faces[i].left_eye[0]);
+-            env->SetIntField(leftEye, fields.point_y, metadata->faces[i].left_eye[1]);
+-            env->SetObjectField(face, fields.face_left_eye, leftEye);
+-            env->DeleteLocalRef(leftEye);
+-
+-            jobject rightEye = env->NewObject(mPointClass, fields.point_constructor);
+-            env->SetIntField(rightEye, fields.point_x, metadata->faces[i].right_eye[0]);
+-            env->SetIntField(rightEye, fields.point_y, metadata->faces[i].right_eye[1]);
+-            env->SetObjectField(face, fields.face_right_eye, rightEye);
+-            env->DeleteLocalRef(rightEye);
+-
+-            jobject mouth = env->NewObject(mPointClass, fields.point_constructor);
+-            env->SetIntField(mouth, fields.point_x, metadata->faces[i].mouth[0]);
+-            env->SetIntField(mouth, fields.point_y, metadata->faces[i].mouth[1]);
+-            env->SetObjectField(face, fields.face_mouth, mouth);
+-            env->DeleteLocalRef(mouth);
+-
+-            if (mIsExtendedFace) {
+-                env->SetIntField(face, fields.face_sm_degree, metadata->faces[i].smile_degree);
+-                env->SetIntField(face, fields.face_sm_score, metadata->faces[i].smile_score);
+-                env->SetIntField(face, fields.face_blink_detected, metadata->faces[i].blink_detected);
+-                env->SetIntField(face, fields.face_recognised, metadata->faces[i].face_recognised);
+-                env->SetIntField(face, fields.face_gaze_angle, metadata->faces[i].gaze_angle);
+-                env->SetIntField(face, fields.face_updown_dir, metadata->faces[i].updown_dir);
+-                env->SetIntField(face, fields.face_leftright_dir, metadata->faces[i].leftright_dir);
+-                env->SetIntField(face, fields.face_roll_dir, metadata->faces[i].roll_dir);
+-                env->SetIntField(face, fields.face_leye_blink, metadata->faces[i].leye_blink);
+-                env->SetIntField(face, fields.face_reye_blink, metadata->faces[i].reye_blink);
+-                env->SetIntField(face, fields.face_left_right_gaze, metadata->faces[i].left_right_gaze);
+-                env->SetIntField(face, fields.face_top_bottom_gaze, metadata->faces[i].top_bottom_gaze);
+-            }
+-        }
+ 
+-        env->DeleteLocalRef(face);
+-        env->DeleteLocalRef(rect);
+-    }
+-    env->CallStaticVoidMethod(mCameraJClass, fields.post_event,
+-            mCameraJObjectWeak, msgType, 0, 0, obj);
+-    env->DeleteLocalRef(obj);
++//	ALOGE("yuanlei33 jni msgType = %d type %d",msgType,metadata->type);
++	if(metadata->type == CAMERA_METADATA_CORNER_DETECT) {
++		ALOGE("yuanlei33 hahahahaha num corners %d",metadata->number_of_corners);
++		jobjectArray obj = NULL;
++	    obj = (jobjectArray) env->NewObjectArray(metadata->number_of_corners,
++	                                             mCornerClass, NULL);
++		if (obj == NULL) {
++	        ALOGE("yuanlei33 Couldn't allocate corner metadata array");
++	        return;
++	    }
++		for (int i = 0; i < metadata->number_of_corners; i++) {
++	//		ALOGE("yuanlei44 corner x =%d, y = %d", metadata->corners[i].x, metadata->corners[i].y);
++			jobject corner = env->NewObject(mCornerClass, fields.corner_constructor);
++	        env->SetObjectArrayElement(obj, i, corner);
++
++			jobject corner_position = env->NewObject(mPointClass, fields.point_constructor);
++			env->SetIntField(corner_position, fields.point_x, metadata->corners[i].x);
++	        env->SetIntField(corner_position, fields.point_y, metadata->corners[i].y);
++			env->SetObjectField(corner, fields.corner_position, corner_position);
++			env->DeleteLocalRef(corner);
++	        env->DeleteLocalRef(corner_position);
++		}
++	    env->CallStaticVoidMethod(mCameraJClass, fields.post_event,
++	            mCameraJObjectWeak, msgType, 0, 1, obj);
++	    env->DeleteLocalRef(obj);
++	}else{
++	    jobjectArray obj = NULL;
++	    obj = (jobjectArray) env->NewObjectArray(metadata->number_of_faces,
++	                                             mFaceClass, NULL);
++	    if (obj == NULL) {
++	        ALOGE("Couldn't allocate face metadata array");
++	        return;
++	    }
++
++	    for (int i = 0; i < metadata->number_of_faces; i++) {
++	        jobject face = env->NewObject(mFaceClass, fields.face_constructor);
++	        env->SetObjectArrayElement(obj, i, face);
++
++	        jobject rect = env->NewObject(mRectClass, fields.rect_constructor);
++	        env->SetIntField(rect, fields.rect_left, metadata->faces[i].rect[0]);
++	        env->SetIntField(rect, fields.rect_top, metadata->faces[i].rect[1]);
++	        env->SetIntField(rect, fields.rect_right, metadata->faces[i].rect[2]);
++	        env->SetIntField(rect, fields.rect_bottom, metadata->faces[i].rect[3]);
++	        env->SetObjectField(face, fields.face_rect, rect);
++	        env->SetIntField(face, fields.face_score, metadata->faces[i].score);
++
++	        bool optionalFields = metadata->faces[i].id != 0
++	            && metadata->faces[i].left_eye[0] != -2000 && metadata->faces[i].left_eye[1] != -2000
++	            && metadata->faces[i].right_eye[0] != -2000 && metadata->faces[i].right_eye[1] != -2000
++	            && metadata->faces[i].mouth[0] != -2000 && metadata->faces[i].mouth[1] != -2000;
++	        if (optionalFields) {
++	            int32_t id = metadata->faces[i].id;
++	            env->SetIntField(face, fields.face_id, id);
++
++	            jobject leftEye = env->NewObject(mPointClass, fields.point_constructor);
++	            env->SetIntField(leftEye, fields.point_x, metadata->faces[i].left_eye[0]);
++	            env->SetIntField(leftEye, fields.point_y, metadata->faces[i].left_eye[1]);
++	            env->SetObjectField(face, fields.face_left_eye, leftEye);
++	            env->DeleteLocalRef(leftEye);
++
++	            jobject rightEye = env->NewObject(mPointClass, fields.point_constructor);
++	            env->SetIntField(rightEye, fields.point_x, metadata->faces[i].right_eye[0]);
++	            env->SetIntField(rightEye, fields.point_y, metadata->faces[i].right_eye[1]);
++	            env->SetObjectField(face, fields.face_right_eye, rightEye);
++	            env->DeleteLocalRef(rightEye);
++
++	            jobject mouth = env->NewObject(mPointClass, fields.point_constructor);
++	            env->SetIntField(mouth, fields.point_x, metadata->faces[i].mouth[0]);
++	            env->SetIntField(mouth, fields.point_y, metadata->faces[i].mouth[1]);
++	            env->SetObjectField(face, fields.face_mouth, mouth);
++	            env->DeleteLocalRef(mouth);
++
++	            if (mIsExtendedFace) {
++	                env->SetIntField(face, fields.face_sm_degree, metadata->faces[i].smile_degree);
++	                env->SetIntField(face, fields.face_sm_score, metadata->faces[i].smile_score);
++	                env->SetIntField(face, fields.face_blink_detected, metadata->faces[i].blink_detected);
++	                env->SetIntField(face, fields.face_recognised, metadata->faces[i].face_recognised);
++	                env->SetIntField(face, fields.face_gaze_angle, metadata->faces[i].gaze_angle);
++	                env->SetIntField(face, fields.face_updown_dir, metadata->faces[i].updown_dir);
++	                env->SetIntField(face, fields.face_leftright_dir, metadata->faces[i].leftright_dir);
++	                env->SetIntField(face, fields.face_roll_dir, metadata->faces[i].roll_dir);
++	                env->SetIntField(face, fields.face_leye_blink, metadata->faces[i].leye_blink);
++	                env->SetIntField(face, fields.face_reye_blink, metadata->faces[i].reye_blink);
++	                env->SetIntField(face, fields.face_left_right_gaze, metadata->faces[i].left_right_gaze);
++	                env->SetIntField(face, fields.face_top_bottom_gaze, metadata->faces[i].top_bottom_gaze);
++	            }
++	        }
++
++	        env->DeleteLocalRef(face);
++	        env->DeleteLocalRef(rect);
++	    }
++	    env->CallStaticVoidMethod(mCameraJClass, fields.post_event,
++	            mCameraJObjectWeak, msgType, 0, 0, obj);
++	    env->DeleteLocalRef(obj);
++	}
+ }
+ 
+ void JNICameraContext::setCallbackMode(JNIEnv *env, bool installed, bool manualMode)
+@@ -1232,6 +1270,7 @@ int register_android_hardware_Camera(JNIEnv *env)
+         { "android/graphics/Rect", "bottom", "I", &fields.rect_bottom },
+         { "android/graphics/Point", "x", "I", &fields.point_x},
+         { "android/graphics/Point", "y", "I", &fields.point_y},
++        { "android/hardware/Camera$Corner", "corner", "Landroid/graphics/Point;", &fields.corner_position },
+     };
+ 
+     field extendedfacefields_to_find[] = {
+@@ -1267,6 +1306,9 @@ int register_android_hardware_Camera(JNIEnv *env)
+     clazz = FindClassOrDie(env, "android/hardware/Camera$Face");
+     fields.face_constructor = GetMethodIDOrDie(env, clazz, "<init>", "()V");
+ 
++	clazz = FindClassOrDie(env, "android/hardware/Camera$Corner");
++    fields.corner_constructor = GetMethodIDOrDie(env, clazz, "<init>", "()V");
++
+     clazz = env->FindClass("android/graphics/Point");
+     fields.point_constructor = env->GetMethodID(clazz, "<init>", "()V");
+     if (fields.point_constructor == NULL) {
